@@ -556,7 +556,7 @@ describe('createChatStreamResponse', () => {
       input: '"earlier.png" (image/png)',
       output: 'Answer',
       metadata: {
-        carriedContext: { attachments: 1, attachmentTokens: 10_000 }
+        carriedContext: { attachments: 1, attachmentTokens: 4_000 }
       }
     })
   })
@@ -581,5 +581,18 @@ describe('createChatStreamResponse', () => {
       level: 'ERROR',
       statusMessage: EMPTY_RESPONSE_STATUS_MESSAGE
     })
+  })
+
+  it('refunds a non-aborted stream that finishes without an answer', async () => {
+    const onZeroPartError = vi.fn(async () => undefined)
+    mocks.stream.mockResolvedValue(createFakeResult(false, []))
+
+    await createChatStreamResponse({
+      ...createConfig(),
+      onZeroPartError
+    })
+    await mocks.finishPromise
+
+    expect(onZeroPartError).toHaveBeenCalledOnce()
   })
 })
