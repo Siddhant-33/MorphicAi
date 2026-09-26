@@ -244,6 +244,37 @@ describe('trimColdStartHistory', () => {
     expect(result.trimmedAtCurrentTurn).toBe(false)
   })
 
+  it('counts split source-context messages in the replay estimate', () => {
+    const coldAt = timestamp(3 * WARM_GAP_MS + COLD_GAP_MS)
+    const citedParts = [
+      {
+        type: 'tool-search',
+        toolCallId: 'call-source',
+        state: 'output-available',
+        input: { query: 'source' },
+        output: {
+          results: [
+            {
+              title: 'Source',
+              url: 'https://example.com/source',
+              content: 'Evidence from the cited source. '.repeat(8)
+            }
+          ]
+        }
+      },
+      { type: 'text', text: 'Answer [1](#call-source)' }
+    ] as unknown as UIMessage['parts']
+    const messages = Array.from({ length: 5 }, (_, index) => {
+      const createdAt = index === 4 ? coldAt : timestamp(index * WARM_GAP_MS)
+      return turn(index, createdAt, citedParts)
+    }).flat()
+
+    expect(
+      trimColdStartHistory(messages, { now: coldAt, limit: 300 })
+        .trimmedAtCurrentTurn
+    ).toBe(true)
+  })
+
   it('counts replayed text with the model tokenizer when a model is given', () => {
     const denseText = '日本語の文章'.repeat(100)
     const coldAt = timestamp(3 * WARM_GAP_MS + COLD_GAP_MS)
@@ -265,7 +296,7 @@ describe('trimColdStartHistory', () => {
     ).toBe(true)
   }, 10_000)
 
-  it('counts gpt-5.6-luna history with its own tokenizer', () => {
+  it('counts gpt-6-luna history with its own tokenizer', () => {
     const arabicText = 'مرحبا بك في هذا البحث'.repeat(20)
     const coldAt = timestamp(3 * WARM_GAP_MS + COLD_GAP_MS)
     const messages = Array.from({ length: 5 }, (_, i) => {
@@ -284,7 +315,7 @@ describe('trimColdStartHistory', () => {
         .trimmedAtCurrentTurn
     ).toBe(true)
     expect(
-      trimColdStartHistory(messages, { ...options, modelId: 'gpt-5.6-luna' })
+      trimColdStartHistory(messages, { ...options, modelId: 'gpt-6-luna' })
         .messages
     ).toBe(messages)
   })

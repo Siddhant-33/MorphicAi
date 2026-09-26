@@ -44,6 +44,7 @@ const MODEL_TO_ENCODING: Record<string, TiktokenEncoding> = {
   'gpt-4.1-nano': 'cl100k_base',
   'gpt-4o-mini': 'cl100k_base',
   'gpt-5.6-luna': 'o200k_base',
+  'gpt-6-luna': 'o200k_base',
   'claude-opus-4': 'cl100k_base', // Use GPT-4 tokenizer as approximation for Claude
   'claude-sonnet-4': 'cl100k_base',
   'claude-3-7-sonnet': 'cl100k_base',
@@ -380,7 +381,11 @@ export function truncateMessages(
       usedTokens += tokens
     } else {
       // Try to at least include the last user message if we haven't
-      if (message.role === 'user' && recentMessages.length > 0) {
+      if (
+        message.role === 'user' &&
+        recentMessages.length > 0 &&
+        !recentMessages.some(recent => recent.role === 'user')
+      ) {
         // Remove oldest assistant messages to make room
         while (recentMessages.length > 0 && usedTokens + tokens > maxTokens) {
           const removed = recentMessages.shift()
