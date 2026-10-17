@@ -8,21 +8,22 @@ This document lists everything a self-hosted Morphic instance can send outside y
 
 Requests made by your server:
 
-| Destination                                              | What it receives                                                              | Default when self-hosting                   |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
-| AI provider (OpenAI, Anthropic, Google, ...)             | Full prompt: system prompt, conversation history, search results, attachments | **On.** Required to answer                  |
-| Search provider (Tavily, SearXNG, Exa, Brave, Firecrawl) | The search query the agent generates                                          | **On.** Required to search                  |
-| Web pages the agent reads                                | Your server's IP and user agent, to whichever site the agent chose            | On                                          |
-| Jina Reader or Tavily Extract                            | The URL being read                                                            | Only when the agent asks for API extraction |
-| PostgreSQL                                               | Chats, messages, attachment metadata, feedback                                | On. Local container under Docker            |
-| Redis                                                    | Cached search results, rate limit counters, usage counters                    | Local container under Docker                |
-| Supabase                                                 | Email, password, OAuth identity, sessions                                     | Off unless configured                       |
-| R2 / S3                                                  | Uploaded file bytes, under a key holding the user id, chat id, and filename   | Off unless configured                       |
-| Favicon provider (Google by default)                     | The hostname of each cited source                                             | On. Configurable, and can be turned off     |
-| Slack                                                    | Feedback text and the submitter's email                                       | Off unless `SLACK_WEBHOOK_URL` is set       |
-| PostHog                                                  | Product analytics events. Not the user's query text                           | **Off**                                     |
-| Langfuse                                                 | Full prompts and completions as traces                                        | **Off**                                     |
-| Vercel Analytics                                         | Page views                                                                    | **Off**                                     |
+| Destination                                              | What it receives                                                                                                                                                                | Default when self-hosting                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| AI provider (OpenAI, Anthropic, Google, ...)             | Full prompt: system prompt, conversation history, search results, attachments                                                                                                   | **On.** Required to answer                  |
+| Search provider (Tavily, SearXNG, Exa, Brave, Firecrawl) | The search query the agent generates                                                                                                                                            | **On.** Required to search                  |
+| Web pages the agent reads                                | Your server's IP and user agent, to whichever site the agent chose                                                                                                              | On                                          |
+| Jina Reader or Tavily Extract                            | The URL being read                                                                                                                                                              | Only when the agent asks for API extraction |
+| PostgreSQL                                               | Chats, messages, attachment metadata, feedback; with `AUTH_PROVIDER=better-auth`, also the auth tables: accounts, sessions, linked identities, verification tokens, invitations | On. Local container under Docker            |
+| Redis                                                    | Cached search results, rate limit counters, usage counters                                                                                                                      | Local container under Docker                |
+| Supabase                                                 | Email, password, OAuth identity, sessions                                                                                                                                       | Off unless configured                       |
+| SMTP server                                              | Invitation, password reset, and bootstrap emails: recipient address and a one-time link                                                                                         | Off unless configured                       |
+| R2 / S3                                                  | Uploaded file bytes, under a key holding the user id, chat id, and filename                                                                                                     | Off unless configured                       |
+| Favicon provider (Google by default)                     | The hostname of each cited source                                                                                                                                               | On. Configurable, and can be turned off     |
+| Slack                                                    | Feedback text and the submitter's email                                                                                                                                         | Off unless `SLACK_WEBHOOK_URL` is set       |
+| PostHog                                                  | Product analytics events. Not the user's query text                                                                                                                             | **Off**                                     |
+| Langfuse                                                 | Full prompts and completions as traces                                                                                                                                          | **Off**                                     |
+| Vercel Analytics                                         | Page views                                                                                                                                                                      | **Off**                                     |
 
 Requests made by the user's browser, which env vars do not control:
 
@@ -51,7 +52,7 @@ SearXNG keeps this on your own infrastructure, and the Docker Compose setup ship
 
 ### Reading pages
 
-By default the `fetch` tool retrieves a URL directly from your server, so only the origin site sees the request. It routes through an extraction service when the agent asks for API extraction, which it does for PDFs and JavaScript-rendered pages: Jina when `JINA_API_KEY` is set, Tavily Extract otherwise.
+By default the `fetch` tool retrieves a URL directly from your server, so only the origin site sees the request. It routes through an extraction service when the agent asks for API extraction, which it does for PDFs and JavaScript-rendered pages: your self-hosted crawl4ai instance when `CRAWL4AI_BASE_URL` is set, Jina when `JINA_API_KEY` is set, Tavily Extract otherwise. When `CRAWL4AI_BASE_URL` is set, crawl4ai handles every fetch — regular and API extraction both, PDF detection included — so no page is retrieved directly from your server and the origin only ever sees requests from your crawler.
 
 The Tavily Extract path does not check for a key first, so an instance with no `TAVILY_API_KEY` still posts the URL to Tavily and gets an authentication error back. If you want no requests to Tavily at all, set `JINA_API_KEY` or keep the agent off API extraction.
 
@@ -62,6 +63,10 @@ Advanced SearXNG search additionally crawls the result pages themselves from you
 PostgreSQL, Redis, Supabase, and R2 or S3 hold whatever you point them at. All four can be local or self-hosted, and Docker Compose runs PostgreSQL and Redis as local containers.
 
 Three details worth knowing if you point Redis at a hosted instance such as Upstash: the advanced-search cache uses the raw search query as part of its cache key, the guest rate limiter uses the visitor's IP address as part of its key, and the rate limit and usage budget keys carry the authenticated user's id.
+
+### Email (SMTP)
+
+With the Better Auth provider and SMTP configured (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`), Morphic sends invitation emails, password-reset links, and bootstrap sign-up links through your SMTP server. Each message carries the recipient address and a one-time link; no chat content is included. Without SMTP nothing is emailed: the links are shown in the admin UI instead, so the mail path stays local. Supabase-based auth sends its own auth emails through Supabase instead (covered in the Supabase row above).
 
 ### Source favicons
 

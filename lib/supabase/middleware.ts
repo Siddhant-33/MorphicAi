@@ -77,3 +77,42 @@ export async function updateSession(request: NextRequest) {
 
   return supabaseResponse
 }
+
+// Exchanges the PKCE code from an emailed link for session cookies.
+export async function exchangeAuthCode(
+  request: NextRequest,
+  code: string,
+  failureSearch = ''
+): Promise<NextResponse> {
+  const url = request.nextUrl.clone()
+  url.search = ''
+  let supabaseResponse = NextResponse.redirect(url)
+  const supabaseKey = getSupabasePublishableKey()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseKey!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        }
+      }
+    }
+  )
+
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  if (error) {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/auth/login'
+    loginUrl.search = failureSearch
+    return NextResponse.redirect(loginUrl)
+  }
+
+  return supabaseResponse
+}
